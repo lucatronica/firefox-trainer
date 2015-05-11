@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>SSBM Firefox Sweetspotting</title>
+	<meta charset="utf-8">
+	<link rel="stylesheet" type="text/css" href="style.css">
+	<link rel="shortcut icon" type="image/png" href="favicon.png">
+</head>
+
+<body>
+	<div id="game">
+		<div id="settings">
+			<h3>Settings</h3>
+			<h4>General settings:</h4>
+			<input type="checkbox" name="dinput" id="cbShowInput" checked>Display stick input<br>
+			<input type="checkbox" name="dginput" id="cbShowInputGame">Display angles in game<br>
+			<span class="disabled"> <!-- Incomplete features -->
+				<input type="checkbox" name="dscore" disabled>Display scores<br>
+				<input type="checkbox" name="noeasy" disabled>Disable cardinal angles<br>
+				
+				<h4>Launch firefox:</h4>
+				<input type="radio" name="starting" value="anyb" disabled>After 2 seconds<br>
+				<input type="radio" name="starting" value="auto" checked disabled>On button press<br>
+				
+				<h4>Sides of the stage to practice:</h4>
+				<input type="radio" name="playside" value="both" disabled>Both<br>
+				<input type="radio" name="playside" value="left" checked disabled>Left only<br>
+				<input type="radio" name="playside" value="right" disabled>Right only<br>
+			</span>
+			
+			<h3>Controls</h4>
+			<button id="btnAngle" onclick="genAngle()">Change angle</button>
+			<button id="btnLaunch" onclick="launch()">Launch fox</button><br>
+			<ul>
+				<li>Press A or Start to launch Fox.</li>
+				<li>Press B to choose a new angle at anytime.</li>
+			</ul>
+		</div>
+		
+		<div id="display">
+			<canvas id="canvas" width="550" height="650"> <!--Canvas size set here-->
+				Canvas is not supported by your browser.
+			</canvas>
+		</div>
+	</div>
+	
+	<footer>
+		<h3>What is this?</h3>
+		<p>A game/tool for practicing sweetspotting Fox Up-B on the ledge in Melee.<br>
+		You need to use a gamepad to play this. A gamecube controller may be used if it is setup as a generic gamepad.<br>
+		Currently only <strong>Chrome, Firefox and Opera</strong> support the Gamepad web api.</p>
+		
+		<h3>Is my controller working?</h3>
+		<p><span id="gamepadtest">Looking for controller...</span>.<br>
+		Press a button (or start) for the controller to register. You may need to plug it out and in.
+		</p>
+		<a id="gh" href="https://github.com/lucatronica/firefox-trainer">Github</a>
+	</footer>
+	
+	<script src="game.js"></script>
+</body>
+</html>
