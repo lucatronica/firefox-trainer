@@ -9,7 +9,7 @@ The game requires the use of a gamepad, which can be a gamecube controller if it
 
 ## Planned additions:
 
-* Score counter, show hardest and easiest angles.
+* Success statistics, perhaps showing hardest and easiest angles.
 * Set time limits given to input challenge angles.
 * Practice on both sides of stage, and choose which sides to practice.
 * Disable cardinal challenge angles.
