@@ -111,7 +111,7 @@ function draw(){
 		var gp = navigator.getGamepads()[0];
 		
 		// A or Start pressed: launch firefox
-		if (gp.buttons[0].pressed || gp.buttons[4].pressed) {
+		if (gp.buttons[0].pressed || gp.buttons[4].pressed || gp.buttons[9].pressed) {
 			if (!buttonsDown) {  // Mechanism to allow only one call per button down
 				buttonsDown = true;
 				if (launching) {
@@ -123,7 +123,7 @@ function draw(){
 			}
 		}
 		// B pressed: choose new angle
-		else if (gp.buttons[3].pressed) {
+		else if (gp.buttons[1].pressed || gp.buttons[3].pressed) {
 			if (!buttonsDown) {
 				buttonsDown = true;
 				genAngle();
