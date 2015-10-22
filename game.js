@@ -1,4 +1,12 @@
-/*****CONTROLLER*******/
+/* SSBM Angle Input Training Tool
+**
+** Segments of code taken from Mozilla's canvas and gamepad API guides:
+**  https://developer.mozilla.org/en-US/docs/Web/API/Gamepad_API
+**  https://developer.mozilla.org/en-US/docs/Web/API/Canvas_API
+*/
+
+
+// ~~~CONTROLLER~~~ //
 // Gamepad connected flag
 var gpConnected = false;
 
@@ -30,14 +38,14 @@ window.addEventListener("gamepaddisconnected", function(e) {
 	gamepadNotIn();
 });
 
-/*****SETTINGS PROCESSING*****/
+
+// ~~~SETTINGS PROCESSING~~~ //
 // Stage side constants
 var BOTH = '0';
 var LEFT = '1';
 var RIGHT = '2';
 var inputPlaySides = BOTH;  // Sides of stage to practice
-var playSide = LEFT;  // The side of the current challenge angle
-var timedStart = false;  // Whether fox is launched after a set interval
+var timedStart = false;  // Whether to launch after a set interval
 
 // Handle radio button input
 function radioClick(radio) {
@@ -50,22 +58,13 @@ function radioClick(radio) {
 		}
 		else {
 			timedStart = false;
+			timerStarted = false;
 		}
 	}
 }
 
 // Handle checkbox inputs
 function checkboxClick(checkbox) {
-	// If clicked display angles after attempt, disable and uncheck normal option
-	if (checkbox.name === 'dginputaft') {
-		if (checkbox.checked) {
-			document.getElementById("cbShowInputGame").checked = false;
-			document.getElementById("cbShowInputGame").disabled = true;
-		}
-		else {
-			document.getElementById("cbShowInputGame").disabled = false;
-		}
-	}
 }
 
 /*****ANIMATION AND GAME LOGIC*****/
@@ -75,306 +74,359 @@ var inputAngle = 0;  // The raw angle that is inputted
 var inputX = 0;  // The x-position of the control stick
 var inputY = 0;
 var clippedInputAngle = 0;  // The input angle after it has been processed as Melee would.
-var ANGLE_TOLERANCE = 0.1; // Min difference between input and challenge angle for success (TODO need to verify)
-var launching = false;  // Flag whether Fox has launched to the ledge
+var ANGLE_TOLERANCE = 5 * (Math.PI / 180); // Min difference between input and challenge angle for success, about 4.73 degrees. In game this would vary with the distance from the ledge, but this value provides a good challenge.
+var launching = false;  // Flag whether player has tested input
+var timerStarted = false;
 var succesfulHit = false;  // Flag whether the ledge was sweet spotted
 var buttonsDown = false;  // If any buttons have been pressed (used to disable input until button is released)
 
 // Game constants
-var INPUT_DEADZONE = 16 * (Math.PI / 180);  // Firefox angle input deadzone, which is 16 degrees in radians
+var INPUT_DEADZONE = 16 * (Math.PI / 180);  // Input angle deadzone, which is 16 degrees in radians
 
 //UI Constants
 var SCREEN_WIDTH = document.getElementById('canvas').width;
 var SCREEN_HEIGHT = document.getElementById('canvas').height;
-var DISPLAY_WIDTH = 0.13 * SCREEN_HEIGHT;  // Width of input display
-var DISPLAY_OFFSET = 0.01 * SCREEN_HEIGHT;
-var LEDGE_OFFSET = 0.1 * SCREEN_WIDTH;  // Distance of ledge from right side of screen
-var FF_OFFSET = 0.3 * SCREEN_WIDTH;  // Distance of fox from left side of screen
-var FF_W = SCREEN_WIDTH * 0.28;  // Fox image width
-var FF_H = FF_W * 0.7;
-var TEXT_VERT_OFFSET = 20;  // Vertical offset of success text
-var TEXT_HORZ_OFFSET = 3 * DISPLAY_WIDTH;
+var OUTER_CIRCLE_RAD = SCREEN_HEIGHT * 0.45;
+var INNER_CIRCLE_RAD = SCREEN_HEIGHT * 0.06;
+var CHALLENGE_CIRCLE_RAD = OUTER_CIRCLE_RAD * Math.tan(ANGLE_TOLERANCE);
+var COL_MAIN = "#7ACEE6";
+var COL_SECONDARY = "#44ADC9";
+var COL_DEADZONE = "#3395D6";
+var COL_INPUT = "#21647A";
+var COL_GOOD = "#20F756";
+var COL_BAD = "#FB4F3C";
 
-// Images
-var ffstill = new Image();  // Firefox image
-ffstill.src = "img/ffstill.png";
-var fdbg = new Image();  // Background and ledge image
-fdbg.src = "img/fd_ledge2.png";
 
-// Game functions
-function clipAngle(angle) {  // Emulate SSBM inputs with cardinal deadzone (about 16 degrees)
-	// TODO does not clip left part of pi/2
-	for (var i = -1; i != 4; i++) {  // Check the four cardinals
+// ~~~Game functions~~~ //
+// Get if object under name is checkbox
+function ifChecked(name) {
+	return document.getElementById(name).checked;
+}
+
+// Initiate a timed start
+function setLaunchTimer() {
+	document.getElementById("rbLaunchOnPress").disabled = true;  // Disable changing from this setting until timer has ended
+	
+	var delay = document.getElementById("numDelayTime").value;
+	if (!isNaN(Number(delay))) {
+		delay = Math.abs((Number(delay)*1000)%10000);
+	}
+	else {
+		delay = 1500;
+	}
+	
+	window.setTimeout(launch, delay);  // Delay launch by 0.7 s 
+	timerStarted = true;
+}
+
+// Emulate SSBM inputs with cardinal deadzone (about 16 degrees)
+function clipAngle(angle) {
+	for (var i = 0; i < 5; i++) {  // Check the four cardinals
 		if (Math.abs(angle - Math.PI * i * 0.5) < INPUT_DEADZONE) {
-			return Math.PI * i * 0.5;
+			return (Math.PI * i * 0.5) % (Math.PI*2);
 		}
 	}
 	return angle;
 }
 
-function genAngle() { // Generate random challenge angle
+// Generate random challenge angle between 0 and 2PI
+function genAngle() {
 	delaunch();
 	
 	// Generate angle, excluding cardinals if required
-	if (document.getElementById("cbDisableCardinals").checked) {
-		challengeAngle = INPUT_DEADZONE + (Math.PI * 0.5 - 2 * INPUT_DEADZONE) * Math.random();
-		if (Math.random > 0.5) {  // 50-50 of being positive or negative
-			challengeAngle = -challengeAngle;
-		}
+	if (ifChecked("cbDisableCardinals")) {
+		challengeAngle = INPUT_DEADZONE + (Math.PI*0.5 - 2*INPUT_DEADZONE)*Math.random() + (Math.PI/2 * Math.floor(Math.random() * 4));
 	}
 	else {
-		challengeAngle = clipAngle(Math.PI * (0.5 - Math.random()));
+		challengeAngle = 2 * Math.PI * (Math.random());
 	}
 	
-	// Choose side to play
-	if (inputPlaySides == BOTH) {  // Randomly choose side to play on
-		if (Math.random() > 0.5) {  // About 50-50 chance of left or right side
-			playSide = LEFT;
+	// Limit to sides if required
+	if (inputPlaySides == RIGHT) {
+		// Half the time go [0,PI/2]
+		if (challengeAngle < Math.PI) {
+			challengeAngle = challengeAngle % (Math.PI/2);
 		}
+		// Other half go [3PI/2,2PI]
 		else {
-			playSide = RIGHT;
+			challengeAngle = challengeAngle % (Math.PI/2) + 1.5*Math.PI;
 		}
 	}
-	else {
-		playSide = inputPlaySides;
+	else if (inputPlaySides == LEFT) {
+		// Go from [PI/2,3PI/2]
+		challengeAngle = challengeAngle % Math.PI + Math.PI/2;
 	}
 	
-	// Set timer to launch fox if required
+	challengeAngle = clipAngle(challengeAngle);
+	
 	if (timedStart) {
-		document.getElementById("rbLaunchOnPress").disabled = true;  // Disable changing from this setting until timer has ended
-		window.setTimeout(launch, 700);  // Delay launch by 0.7 s 
+		setLaunchTimer();
 	}
 }
 
-// Set up for launching firefox
+// Test input against challenge
 function launch() {
+	// Set up variables for launching
 	launching = true;
-	document.getElementById("btnLaunch").disabled = true;
-	// Determine success of inputed angle
-	if (Math.abs(clippedInputAngle - challengeAngle) < ANGLE_TOLERANCE) {
+	
+	// Determine success of inputted angle
+	if (Math.abs(challengeAngle - clippedInputAngle) < ANGLE_TOLERANCE ||
+			Math.abs(challengeAngle - clippedInputAngle + Math.PI*2) < ANGLE_TOLERANCE) {
 		succesfulHit = true;
 	}
 	if (timedStart) {
 		document.getElementById("rbLaunchOnPress").disabled = false;
 	}
+	
+	// Log angle in stats
+	statsLogAngle(succesfulHit);
+	timerStarted = false;
 }
 
 // Reset variables after launching
 function delaunch() {
 	launching = false;
-	document.getElementById("btnLaunch").disabled = false;
 	succesfulHit = false;
 }
 
-/************MAIN LOOP**************/
+// Set new angle tolerance
+function inputNewTolerance() {
+	var newTol = document.getElementById("numAngleTolerance").value;
+	
+	if (!isNaN(Number(newTol))) {
+		ANGLE_TOLERANCE = Number(newTol) * (Math.PI / 180);
+	}
+	else {
+		ANGLE_TOLERANCE = 5 * (Math.PI / 180);
+	}
+	
+	ANGLE_TOLERANCE = Math.abs(ANGLE_TOLERANCE%(Math.PI/4));
+}
+
+/************STATISTICS MAGAEMENT AND PROCESSING*************/
+var statsTrials = 0;  // Total number of trials
+var statsSuccess = 0;  // Total number of successes
+
+// Return portion / total without dividing by zero
+function safePortion(portion, total) {
+	if (total == 0) {
+		return(0)
+	}
+	return(portion / total)
+}
+
+function statsUpdateHTML() {
+	document.getElementById("trials").innerHTML = statsTrials;
+	document.getElementById("successpercent").innerHTML = (100 * safePortion(statsSuccess, statsTrials)).toFixed(2);
+}
+
+function statsLogAngle(success) {
+	statsTrials += 1;
+	if (success) {
+		statsSuccess += 1;
+	}
+	
+	statsUpdateHTML();
+}
+
+
+// ~~~MAIN LOOP~~~ //
 function draw(){
 	// Rendering context
 	var ctx = document.getElementById('canvas').getContext('2d');
 	
-	ctx.save(); // Save default settings
-	
-	// Clear screen and draw background
-	ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-	// Flip background if required
-	if (playSide == RIGHT) {
-		ctx.scale(-1, 1);
-		ctx.drawImage(fdbg, -SCREEN_WIDTH, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-	}
-	else {
-		ctx.drawImage(fdbg, 0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
-	}
-	
-	ctx.restore();
+	// Save default settings
 	ctx.save();
 	
-	// If the gamepad is connected and it's defined, get inputs and render fox and such
-	if (gpConnected && navigator.getGamepads()[0] != 'undefined') {
+	// Clear screen
+	ctx.clearRect(0, 0, SCREEN_WIDTH, SCREEN_HEIGHT);
+	
+	// Angle clipping guide (ie the deadzone)
+	if (ifChecked("cbShowClipping") && (!ifChecked("cbShowHintsAfter") || launching)) {
+		ctx.fillStyle = COL_DEADZONE;
+		ctx.beginPath();
+		for (var i = 0; i <= 3; i++) {
+			ctx.moveTo(SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
+			ctx.arc(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, OUTER_CIRCLE_RAD,
+					INPUT_DEADZONE + i*Math.PI*0.5,
+					-INPUT_DEADZONE + i*Math.PI*0.5, true);
+			ctx.closePath();
+			ctx.fill();
+		}
+	}
+	
+	// Angle Tolerance Guide
+	if (ifChecked("cbShowTolerance") && (!ifChecked("cbShowHintsAfter") || launching)) {
+		ctx.globalAlpha = 0.6;
+		ctx.fillStyle = COL_MAIN;
+		ctx.beginPath();
+		ctx.moveTo(SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
+		ctx.arc(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, OUTER_CIRCLE_RAD,
+					challengeAngle + ANGLE_TOLERANCE, challengeAngle - ANGLE_TOLERANCE, true);
+		ctx.closePath();
+		ctx.fill();
+		ctx.globalAlpha = 1;
+	}
+	
+	// Main circle
+	ctx.beginPath();
+	ctx.strokeStyle = COL_MAIN;
+	ctx.lineWidth = 5;
+	ctx.arc(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, OUTER_CIRCLE_RAD, 0, 2*Math.PI);
+	ctx.stroke();
+	
+	// Centre circle
+	ctx.beginPath();
+	ctx.fillStyle = COL_SECONDARY;
+	ctx.arc(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, INNER_CIRCLE_RAD, 0, 2*Math.PI);
+	ctx.fill();
+	
+	//Challenge angle
+	ctx.beginPath();
+	ctx.fillStyle = COL_SECONDARY;
+	ctx.arc(SCREEN_WIDTH/2 + OUTER_CIRCLE_RAD*Math.cos(challengeAngle),
+			SCREEN_HEIGHT/2 + OUTER_CIRCLE_RAD*Math.sin(challengeAngle),
+			CHALLENGE_CIRCLE_RAD, 0, 2*Math.PI);
+	ctx.fill();
+	
+	// If the gamepad is connected and it's defined, get inputs
+	if (gpConnected) {
 		var gp = navigator.getGamepads()[0];
-		
-		// A or Start pressed: launch firefox
-		if (gp.buttons[0].pressed || gp.buttons[4].pressed || gp.buttons[9].pressed) {
-			if (!buttonsDown) {  // Mechanism to allow only one call per button down
-				buttonsDown = true;
-				if (launching) {
-					genAngle();
-				}
-				else if (!timedStart) {
-					// Flip angle to compensate for flipped challengeAngle on right side
-					if (playSide == RIGHT) {
-						clippedInputAngle = Math.PI - clippedInputAngle;
-						launch();
-						clippedInputAngle = Math.PI - clippedInputAngle;
-					}
-					else {
-						launch();
+		if (typeof gp !== 'undefined') {
+			// A or Start pressed: launch
+			try {
+				if (gp.buttons[0].pressed || gp.buttons[4].pressed || gp.buttons[9].pressed) {
+					if (!buttonsDown) {  // Mechanism to allow only one call per button down
+						buttonsDown = true;  // Flag a significant button has been pressed
+						if (launching) {
+							genAngle();
+						}
+						else if (!timedStart) {
+							launch();
+						}
 					}
 				}
+				// B pressed: choose new angle
+				else if (gp.buttons[1].pressed || gp.buttons[3].pressed) {
+					if (!buttonsDown && !timerStarted) {
+						buttonsDown = true;
+						genAngle();
+					}
+				}
+				// Triggers pressed: retry angle
+				else if (gp.buttons[5].pressed || gp.buttons[6].pressed || gp.buttons[7].pressed) {
+					if (launching) {
+						delaunch();
+						if (timedStart) {
+							setLaunchTimer();
+						}
+					}
+				}
+				// No buttons down, allow inputs to have an effect again
+				else {
+					buttonsDown = false;
+				}
 			}
-		}
-		// B pressed: choose new angle
-		else if (gp.buttons[1].pressed || gp.buttons[3].pressed) {
-			if (!buttonsDown) {
-				buttonsDown = true;
-				genAngle();
+			catch(TypeError) {
+				ctx.fillStyle = COL_BAD;
+				ctx.fillText("Error (tried to read from unplugged controller)", 10, SCREEN_HEIGHT - 30);
+				gamepadconnected = false;
+				return;
 			}
-		}
-		// No buttons down, allow inputs to have an effect again
-		else {
-			buttonsDown = false;
-		}
-		
-		// Get the input angles if not launched (creates 'frozen' effect when launched)
-		if (!launching) {
-			inputX = gp.axes[0];
-			inputY = gp.axes[1];	
-			if (inputX > 0) {
-				inputAngle = Math.atan(inputY/inputX);
+			
+			// Get the input angles if not launched (creates 'frozen' effect when launched)
+			if (!launching) {
+				inputX = gp.axes[0];
+				inputY = gp.axes[1];	
+				inputAngle = Math.PI*2 - (Math.atan2(inputX, inputY) + 1.5*Math.PI) % (Math.PI*2);
+				clippedInputAngle = clipAngle(inputAngle);
 			}
-			else if (inputX < 0) {
-				inputAngle = Math.atan(inputY/inputX) + Math.PI;
-			}
-			else { // Prevent divide by 0 for inputX == 0
-				inputAngle = 0;
-			}
-			clippedInputAngle = clipAngle(inputAngle);
+			ctx.font= "20px Arial";
+			ctx.fillStyle = '#ff4444';
+			//ctx.fillText(inputAngle + " vs " + challengeAngle, 100, 20);  // Debug print angles
 		}
 		
-		ctx.save();
-		
-		// Flip scale if required
-		if (playSide == RIGHT) {
-			ctx.scale(-1, 1);
-			// Move fox to the ledge
-			ctx.translate(SCREEN_WIDTH - LEDGE_OFFSET - SCREEN_WIDTH, SCREEN_HEIGHT * 0.5);  // Move to ledge
-			clippedInputAngle = Math.PI - clippedInputAngle;  // Flip angle across x-axis
+		// Display raw controller input
+		if (ifChecked("cbShowInput") && (!ifChecked("cbShowHintsAfter") || launching)) {			
+			var tempX = SCREEN_WIDTH/2 + inputX * OUTER_CIRCLE_RAD * 0.8;  // Position of raw x-input
+			var tempY = SCREEN_HEIGHT/2 + inputY * OUTER_CIRCLE_RAD * 0.8;
+			
+			// Connecting line
+			ctx.strokeStyle = COL_INPUT;
+			ctx.lineWidth = 3;
+			ctx.beginPath();
+			ctx.moveTo(SCREEN_WIDTH/2, SCREEN_HEIGHT/2);
+			ctx.lineTo(tempX, tempY);
+			ctx.closePath();
+			ctx.stroke();
+			
+			// The stationary inner circle
+			ctx.fillStyle = COL_INPUT;
+			ctx.beginPath();
+			ctx.arc(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, INNER_CIRCLE_RAD*0.25, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fill();
+			
+			// The moving circle
+			ctx.fillStyle = COL_INPUT;
+			ctx.beginPath();
+			ctx.arc(tempX, tempY, INNER_CIRCLE_RAD*0.4, 0, Math.PI * 2);
+			ctx.closePath();
+			ctx.fill();
 		}
-		else {
-			ctx.translate(SCREEN_WIDTH - LEDGE_OFFSET, SCREEN_HEIGHT * 0.5);  // Move to ledge
-		}
 		
-		ctx.rotate(challengeAngle + Math.PI);  // Rotate to challenge angle
-		ctx.translate(SCREEN_WIDTH - FF_OFFSET - LEDGE_OFFSET, 0);  // Move to firefox position
-		ctx.rotate(-Math.PI - challengeAngle); // Reset angle
-		
-		ctx.save();  // Save position at firefox for drawing angles ingame
-		
-		// If launched then move towards ledge
+		// Success/failure symbol and messege
 		if (launching) {
-			ctx.rotate(clippedInputAngle);
-			ctx.translate(SCREEN_WIDTH - FF_OFFSET - LEDGE_OFFSET, 0);
-			ctx.rotate(0.5 * Math.PI);
-		}
-		
-		ctx.translate(-FF_W * 0.5, -FF_H * 0.5);  // Compensate for image dimensions
-		ctx.drawImage(ffstill, 0, 0, FF_W, FF_H); // Draw fox
-		
-		ctx.restore();
-		
-		// Display input and required angle over fox
-		if (document.getElementById("cbShowInputGame").checked || (document.getElementById("cbShowInputGameAfter").checked && launching)) {
-			ctx.lineWidth= 3;
-			ctx.save();
+			var message = "";
+			ctx.lineWidth = 10;
+			ctx.globalAlpha = 0.6;
 			
-			// Draw challenge angle
-			ctx.rotate(challengeAngle);
-			ctx.strokeStyle = '#008800';
-			ctx.beginPath();
-			ctx.moveTo(0, 0);
-			ctx.lineTo(SCREEN_WIDTH * 0.3, 0);
-			ctx.closePath();
-			ctx.stroke();
+			if (succesfulHit) {
+				ctx.strokeStyle = COL_GOOD;
+				ctx.beginPath();
+				ctx.arc(SCREEN_WIDTH/2, SCREEN_HEIGHT/2, OUTER_CIRCLE_RAD/2, 0, 2*Math.PI);
+				ctx.closePath();
+				ctx.stroke();
+				
+				message = "Success";
+				ctx.fillStyle = COL_GOOD;
+			}
+			else {
+				ctx.strokeStyle = COL_BAD;
+				ctx.beginPath();
+				ctx.moveTo(SCREEN_WIDTH/2 - OUTER_CIRCLE_RAD/2, SCREEN_HEIGHT/2 - OUTER_CIRCLE_RAD/2);
+				ctx.lineTo(SCREEN_WIDTH/2 + OUTER_CIRCLE_RAD/2, SCREEN_HEIGHT/2 + OUTER_CIRCLE_RAD/2);
+				ctx.moveTo(SCREEN_WIDTH/2 + OUTER_CIRCLE_RAD/2, SCREEN_HEIGHT/2 - OUTER_CIRCLE_RAD/2);
+				ctx.lineTo(SCREEN_WIDTH/2 - OUTER_CIRCLE_RAD/2, SCREEN_HEIGHT/2 + OUTER_CIRCLE_RAD/2);
+				ctx.closePath();
+				ctx.stroke();
+				
+				message = "Failure";
+				ctx.fillStyle = COL_BAD;
+			}
 			
-			// Draw input angle
-			ctx.restore();
-			ctx.rotate(clippedInputAngle);
-			ctx.strokeStyle = '#00ff88';
-			ctx.beginPath();
-			ctx.moveTo(0, 0);
-			ctx.lineTo(SCREEN_WIDTH * 0.15, 0);
-			ctx.closePath();
-			ctx.stroke();
+			ctx.globalAlpha = 1;
+			ctx.font= "36px Arial";
+			ctx.fillText(message, 15, 40);  // Render at top-left
 		}
-		
-		ctx.restore();
 	}
 	// Indicate gamepad is not connected
 	else {
-		ctx.font= "30px Arial";
-		ctx.fillStyle = '#ff4444';
-		ctx.fillText("Gamepad Not Connected", SCREEN_WIDTH * 0.2, SCREEN_HEIGHT * 0.5 - 15);
+		// Transparent black overlay
+		ctx.globalAlpha = 0.6;
+		ctx.fillStyle = "#000000";
+		ctx.fillRect(0,0,SCREEN_WIDTH,SCREEN_HEIGHT);
+		ctx.globalAlpha = 1;
+		
+		// Text
+		ctx.font= "36px Arial";
+		ctx.fillStyle = COL_MAIN;
+		ctx.fillText("Gamepad Not Connected", SCREEN_WIDTH * 0.17, SCREEN_HEIGHT * 0.5 + 7);
 	}
 	
 	ctx.restore();
-	
-	// Display success messages. Lots of magic numbers here that work well enough.
-	if (launching) {
-		ctx.fillStyle = '#000000';
-		ctx.fillRect(TEXT_HORZ_OFFSET, TEXT_VERT_OFFSET, 155, 50);
-		
-		ctx.font= "36px Arial";
-		var message = '';
-		if (succesfulHit) {
-			message = "Success";
-			ctx.fillStyle = '#49F54C';
-		}
-		else {
-			message = "Failure";
-			ctx.fillStyle = '#F52D2A';
-		}
-		ctx.fillText(message, TEXT_HORZ_OFFSET + 10, TEXT_VERT_OFFSET + 40);  // Render text at top right of screen (25 is magic)
-	}
-	
-	// Unflip angle
-	if (playSide == RIGHT) {
-		clippedInputAngle = Math.PI - clippedInputAngle;
-	}
-	
-	// Display raw and clipped controller input
-	if (document.getElementById("cbShowInput").checked) {
-		ctx.save();
-		
-		// Box background
-		ctx.fillStyle = '#ffffff';
-		ctx.fillRect(DISPLAY_OFFSET, DISPLAY_OFFSET, DISPLAY_WIDTH, DISPLAY_WIDTH);
-		
-		// Move to centre of box
-		ctx.translate(DISPLAY_OFFSET + DISPLAY_WIDTH * 0.5, DISPLAY_OFFSET + DISPLAY_WIDTH * 0.5);
-		
-		// Draw clipped angle from input
-		ctx.save();
-		ctx.rotate(clippedInputAngle);
-		ctx.strokeStyle = '#888888';
-		ctx.beginPath();
-		ctx.moveTo(0, 0);
-		ctx.lineTo(DISPLAY_WIDTH * 0.5, 0);
-		ctx.closePath();
-		ctx.stroke();
-		ctx.restore();
-		
-		// Draw raw input line and circle
-		var tempX = inputX * DISPLAY_WIDTH * 0.45;  // Position of raw x-input
-		var tempY = inputY * DISPLAY_WIDTH * 0.45;
-		// The line
-		ctx.strokeStyle = '#000000';
-		ctx.beginPath();
-		ctx.moveTo(0, 0);
-		ctx.lineTo(tempX, tempY);
-		ctx.closePath();
-		ctx.stroke();
-		// The circle
-		ctx.fillStyle = '#000000';
-		ctx.beginPath();
-		ctx.arc(tempX, tempY, DISPLAY_WIDTH * 0.05, 0, Math.PI * 2, true);
-		ctx.closePath();
-		ctx.fill();
-		
-		ctx.restore();
-	}
 	
 	window.requestAnimationFrame(draw);  // Next frame
 }
 
-fdbg.onload = function() {
-	//Initialize drawing function
-	window.requestAnimationFrame(draw);
-}
+draw();

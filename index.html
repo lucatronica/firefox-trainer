@@ -1,61 +1,69 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>SSBM Firefox Trainer</title>
+	<title>SSBM Angle Input Trainer</title>
 	<meta charset="utf-8">
 	<link rel="stylesheet" type="text/css" href="style.css">
 	<link rel="shortcut icon" type="image/png" href="favicon.png">
 </head>
 
 <body>
-	<div id="game">
+	<div id="game" class="white-box">
 		<div id="settings">
 			<h3>Settings</h3>
 			<h4>General settings:</h4>
 			<input type="checkbox" name="dinput" id="cbShowInput" checked>Display stick input<br>
-			<input type="checkbox" name="dginput" id="cbShowInputGame">Display angles in game<br>
-			<input type="checkbox" name="dginputaft" id="cbShowInputGameAfter" onclick="checkboxClick(this);">Display angles in game only after attempt<br>
-			<input type="checkbox" name="noeasy" id="cbDisableCardinals">Disable cardinal angles<br>
-			<span class="disabled"> <!-- Incomplete features -->
-				<input type="checkbox" name="dscore" disabled>Display scores<br>
-			</span>
+			<input type="checkbox" name="dtolerance" id="cbShowTolerance">Display angle tolerance<br>
+			<input type="checkbox" name="dclipping" id="cbShowClipping">Display clipping/deadzone regions<br>
+			<input type="checkbox" name="dhintsafter" id="cbShowHintsAfter">Display above hints only after attempt<br>
+			<input type="checkbox" name="noeasy" id="cbDisableCardinals">Disable cardinal challenge angles<br>
+			<input id="numAngleTolerance" type="number" pattern="[0-9.]+" value="5" min="1" max="44" oninput="inputNewTolerance();"> Angle tolerance (degrees)
 			
-			<h4>Launch firefox:</h4>
-			<input type="radio" name="starting" value="timed" onclick="radioClick(this);">After 0.7 seconds (ie 42 frames as in Melee)<br>
+			<h4>When to check input</h4>
+			<input type="radio" name="starting" value="timed" onclick="radioClick(this);">On reaction after 
+					<input id="numDelayTime" type="number" pattern="[0-9.]+" value="1.5" min="0" max="10"> seconds<br>
 			<input type="radio" name="starting" value="auto" id="rbLaunchOnPress" onclick="radioClick(this);" checked>On button press<br>
 			
-			<h4>Sides of the stage to practice:</h4>
-			<input type="radio" name="playside" value="0" onclick="radioClick(this);" checked >Both (randomly pick)<br>
+			<h4>Sides to practice:</h4>
+			<input type="radio" name="playside" value="0" onclick="radioClick(this);" checked >Both<br>
 			<input type="radio" name="playside" value="1" onclick="radioClick(this);">Left only<br>
 			<input type="radio" name="playside" value="2" onclick="radioClick(this);">Right only<br>
 
-			<h3>Controls</h4>
-			<button id="btnAngle" onclick="genAngle();">Change angle</button>
-			<button id="btnLaunch" onclick="launch();">Launch fox</button><br>
+			<h3>How to</h3>
 			<ul>
-				<li>Press A or Start to launch Fox.</li>
-				<li>Press B to choose a new angle at anytime.</li>
+				<li>The large ring represents your control stick.<br>Try to aim at the smaller circle on the ring.</li>
+				<li>Press A or Start to check your input.<br>Input angles will clip at cardinals.</li>
+				<li>Press B to choose a new angle at any time.</li>
+				<li>Press Z, L or R to retry a particular angle</li>
 			</ul>
+			
+			<h3>Statistics</h3>
+			Total trials: <span id="trials" class="stats">0</span><br>
+			Total success rate: <span id="successpercent" class="stats">0</span>%
 		</div>
 		
 		<div id="display">
-			<canvas id="canvas" width="550" height="650"> <!--Canvas size set here-->
+			<canvas id="canvas" width="600" height="600"> <!--Canvas size set here-->
 				Canvas is not supported by your browser.
 			</canvas>
 		</div>
 	</div>
 
-	<footer>
+	<footer class="white-box">
 		<h3>What is this?</h3>
-		<p>A game/tool for practicing inputting angles based on ingame images in Melee. This is particularly important for aiming at the ledge with Fox and Falco's Up-B.<br>
-		You need to use a gamepad to play this. A gamecube controller may be used if it is setup as a generic gamepad.<br>
-		Currently only <strong>Chrome, Firefox and Opera</strong> support the Gamepad web api.</p>
+		<p>A tool for practicing inputting angles on a control stick based on ingame visuals.<br>
+		This is particularly important for many special attacks in Super Smash Bros, such as Fox and Pikachu's Up-B.</p>
+		<p>You need to use a gamepad. A gamecube controller may be used if it is setup as a generic gamepad.<br>
+		As of October 2015 only <strong>Chrome, Firefox, Opera and Edge</strong> support the Gamepad web api.</p>
 		
 		<h3>Is my controller working?</h3>
-		<p><span id="gamepadtest">Looking for controller...</span>.<br>
-		Press a button (or start) for the controller to register. You may need to plug it out and in.
+		<p><span id="gamepadtest">Looking for controller...</span><br>
+		Press a button (or start) for the controller to register. <strong>You may need to plug the USB out and in.</strong><br>
+		With a 4-port adaptor (using VJoy) you may need to stop and start the drivers (these seem to be work inconsistently).
 		</p>
-		<a id="gh" href="https://github.com/lucatronica/firefox-trainer">Github</a>
+		
+		<a class="small-link" href="https://github.com/lucatronica/firefox-trainer">[GitHub]</a>
+		<a class="small-link" href="https://www.reddit.com/message/compose?to=lucatron"> [Issues? Send me a message]</a>
 	</footer>
 
 	<script src="game.js"></script>
